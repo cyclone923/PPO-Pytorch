@@ -70,6 +70,12 @@ class PPO:
 
         self.MseLoss = nn.MSELoss()
 
+    def policy_dict(self):
+        return self.policy.state_dict()
+
+    def act(self, state, memory):
+        return self.policy_old.act(state, memory)
+
     def update(self, memory):
         # Monte Carlo estimate of state rewards:
         rewards = []
@@ -78,11 +84,12 @@ class PPO:
             if is_terminal:
                 discounted_reward = 0
             discounted_reward = reward + (self.gamma * discounted_reward)
-            rewards.insert(0, discounted_reward)
+            rewards.append(discounted_reward)
+        rewards = list(reversed(rewards))
 
         # Normalizing the rewards:
         rewards = torch.tensor(rewards).to(device)
-        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
+        # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
 
         # convert list to tensor
         old_states = torch.stack(memory.states).to(device).detach()

@@ -56,16 +56,21 @@ class ActorCritic(nn.Module):
 
 
 class A2C:
-    def __init__(self, state_dim, action_dim, n_latent_var, lr, betas, gamma, K_epochs):
+    def __init__(self, state_dim, action_dim, n_latent_var, lr, betas, gamma):
         self.lr = lr
         self.betas = betas
         self.gamma = gamma
-        self.K_epochs = K_epochs
 
         self.policy = ActorCritic(state_dim, action_dim, n_latent_var).to(device)
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr, betas=betas)
 
         self.MseLoss = nn.MSELoss()
+
+    def policy_dict(self):
+        return self.policy.state_dict()
+
+    def act(self, state, memory):
+        return self.policy.act(state, memory)
 
     def update(self, memory):
         # Monte Carlo estimate of state rewards:
@@ -75,11 +80,12 @@ class A2C:
             if is_terminal:
                 discounted_reward = 0
             discounted_reward = reward + (self.gamma * discounted_reward)
-            rewards.insert(0, discounted_reward)
+            rewards.append(discounted_reward)
+        rewards = list(reversed(rewards))
 
         # Normalizing the rewards:
         rewards = torch.tensor(rewards).to(device)
-        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
+        # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
 
         # convert list to tensor
         states = torch.stack(memory.states).to(device).detach()
@@ -90,7 +96,7 @@ class A2C:
 
         # Finding Surrogate Loss:
         advantages = rewards - state_values.detach()
-        loss = -logprobs*advantages + 0.5 * self.MseLoss(state_values, rewards) - 0.01 * dist_entropy
+        loss = -logprobs * advantages + 0.5 * self.MseLoss(state_values, rewards) - 0.01 * dist_entropy
 
         # take gradient step
         self.optimizer.zero_grad()
