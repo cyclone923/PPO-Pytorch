@@ -1,51 +1,62 @@
 import torch
 import torch.nn as nn
-from torch.distributions import Categorical
+from torch.distributions import Categorical, MultivariateNormal
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class ActorCritic(nn.Module):
-    def __init__(self, state_dim, action_dim, n_latent_var):
+    def __init__(self, state_dim, action_dim, n_latent_var, action_std=None):
         super(ActorCritic, self).__init__()
 
         # actor
         self.action_layer = nn.Sequential(
             nn.Linear(state_dim, n_latent_var),
             nn.Tanh(),
-            nn.Linear(n_latent_var, n_latent_var),
+            nn.Linear(n_latent_var, n_latent_var // 2),
             nn.Tanh(),
-            nn.Linear(n_latent_var, action_dim),
-            nn.Softmax(dim=-1)
+            nn.Linear(n_latent_var // 2, action_dim),
         )
+        if action_std is None:
+            self.action_layer.add_module("soft_max", nn.Softmax(dim=-1))
+            self.action_distribution = Categorical
+        else:
+            self.action_distribution = MultivariateNormal
+            self.cov_mat = torch.diag(action_std * action_std * torch.ones(action_dim)).to(device)
 
         # critic
         self.value_layer = nn.Sequential(
             nn.Linear(state_dim, n_latent_var),
             nn.Tanh(),
-            nn.Linear(n_latent_var, n_latent_var),
+            nn.Linear(n_latent_var, n_latent_var // 2),
             nn.Tanh(),
-            nn.Linear(n_latent_var, 1)
+            nn.Linear(n_latent_var // 2, 1)
         )
 
     def forward(self):
         raise NotImplementedError
 
     def act(self, state, memory):
-        state = torch.from_numpy(state).float().to(device)
-        action_probs = self.action_layer(state)
-        dist = Categorical(action_probs)
+        state = torch.FloatTensor(state).to(device)
+        action_mean = self.action_layer(state)
+        if hasattr(self, "cov_mat"):
+            dist = self.action_distribution(action_mean, self.cov_mat)
+        else:
+            dist = self.action_distribution(action_mean)
         action = dist.sample()
 
         memory.states.append(state)
         memory.actions.append(action)
         memory.logprobs.append(dist.log_prob(action))
 
-        return action.item()
+        return action.cpu().numpy()
 
     def evaluate(self, state, action):
-        action_probs = self.action_layer(state)
-        dist = Categorical(action_probs)
+        action_mean = self.action_layer(state)
+        if hasattr(self, "cov_mat"):
+            dist = self.action_distribution(action_mean, self.cov_mat.repeat(action_mean.size()[0], 1, 1).to(device))
+        else:
+            dist = self.action_distribution(action_mean)
 
         action_logprobs = dist.log_prob(action)
         dist_entropy = dist.entropy()
@@ -56,16 +67,16 @@ class ActorCritic(nn.Module):
 
 
 class PPO:
-    def __init__(self, state_dim, action_dim, n_latent_var, lr, betas, gamma, K_epochs, eps_clip):
+    def __init__(self, state_dim, action_dim, n_latent_var, lr, betas, gamma, K_epochs, eps_clip, action_std=None):
         self.lr = lr
         self.betas = betas
         self.gamma = gamma
         self.eps_clip = eps_clip
         self.K_epochs = K_epochs
 
-        self.policy = ActorCritic(state_dim, action_dim, n_latent_var).to(device)
+        self.policy = ActorCritic(state_dim, action_dim, n_latent_var, action_std).to(device)
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr, betas=betas)
-        self.policy_old = ActorCritic(state_dim, action_dim, n_latent_var).to(device)
+        self.policy_old = ActorCritic(state_dim, action_dim, n_latent_var, action_std).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
 
         self.MseLoss = nn.MSELoss()
@@ -73,8 +84,11 @@ class PPO:
     def policy_dict(self):
         return self.policy.state_dict()
 
-    def act(self, state, memory):
-        return self.policy_old.act(state, memory)
+    def act_policy(self):
+        return self.policy_old
+
+    def take_action(self, state, memory):
+        return self.act_policy().act(state, memory)
 
     def update(self, memory):
         # Monte Carlo estimate of state rewards:

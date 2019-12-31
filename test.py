@@ -43,15 +43,15 @@ def parse_args():
 def test():
     ############## Hyperparameters ##############
     env_name = "LunarLander-v2"
-    alg_name = "ppo"
+    alg_name = "a2c"
     #############################################
 
     n_episodes = 3
-    max_timesteps = 300
+    max_timesteps = 3000
     render = True
     save_gif = False
 
-    filename = "PPO_{}.pth".format(env_name)
+    filename = "{}_{}.pth".format(alg_name, env_name)
     directory = "./preTrained/"
 
     args = parse_args()
@@ -59,13 +59,13 @@ def test():
     alg = pick_alg(alg_name, env, args)
     memory = Memory()
     print("Algorithm Used: {}".format(alg_name))
-    alg.policy_old.load_state_dict(torch.load(directory+filename))
+    alg.act_policy().load_state_dict(torch.load(directory+filename))
     
     for ep in range(1, n_episodes+1):
         ep_reward = 0
         state = env.reset()
         for t in range(max_timesteps):
-            action = alg.act(state, memory)
+            action = alg.take_action(state, memory)
             state, reward, done, _ = env.step(action)
             ep_reward += reward
             if render:
@@ -78,7 +78,6 @@ def test():
                 break
             
         print('Episode: {}\tReward: {}'.format(ep, int(ep_reward)))
-        ep_reward = 0
         env.close()
     
 if __name__ == '__main__':

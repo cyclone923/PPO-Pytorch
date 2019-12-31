@@ -8,7 +8,7 @@ from argparse import ArgumentParser
 
 def pick_alg(name, env, args):
     state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.n
+    action_dim = env.action_space.shape[0]
     if name == "a2c":
         alg = algorithm.A2C(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma)
     elif name == "ppo":
@@ -50,7 +50,7 @@ def main():
     solved_reward = 230               # stop training if avg_reward > solved_reward
     log_interval = 20                 # print avg reward in the interval
     max_episodes = 20000              # max training episodes
-    max_timesteps = 300               # max timesteps in one episode
+    max_timesteps = 3000               # max timesteps in one episode
     update_timestep = 2000            # update policy every n timesteps
     #############################################
 
@@ -67,16 +67,19 @@ def main():
     # logging variables
     running_reward = 0
     avg_length = 0
-    timestep = 0
+    time_step = 0
 
     # training loop
     for i_episode in range(1, max_episodes+1):
         state = env.reset()
         for t in range(max_timesteps):
-            timestep += 1
+            if t == max_timesteps:
+                print(f"Reach maximum step {t}")
+                exit(0)
+            time_step += 1
             
             # Running policy_old:
-            action = alg.act(state, memory)
+            action = alg.take_action(state, memory)
             state, reward, done, _ = env.step(action)
             
             # Saving reward and is_terminal:
@@ -84,10 +87,10 @@ def main():
             memory.is_terminals.append(done)
             
             # update if its time
-            if timestep >= update_timestep and done == True:
+            if time_step >= update_timestep and done == True:
                 alg.update(memory)
                 memory.clear_memory()
-                timestep = 0
+                time_step = 0
             
             running_reward += reward
             if render:
