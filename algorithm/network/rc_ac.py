@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical, MultivariateNormal
 
-class FC_ActorCritic(nn.Module):
+class RC_ActorCritic(nn.Module):
     def __init__(self, state_dim, action_dim, n_latent_var, device, action_std=None):
-        super(FC_ActorCritic, self).__init__()
+        super(RC_ActorCritic, self).__init__()
 
         self.device = device
 

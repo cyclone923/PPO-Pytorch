@@ -8,12 +8,12 @@ from argparse import ArgumentParser
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def pick_alg(name, env, args):
-    state_dim = env.observation_space.shape[0]
+    obs_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
     if name == "a2c":
-        alg = algorithm.A2C(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, device)
+        alg = algorithm.A2C(obs_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, device)
     elif name == "ppo":
-        alg = algorithm.PPO(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, args.k_epochs, args.eps_clip, device)
+        alg = algorithm.PPO(obs_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, args.k_epochs, args.eps_clip, device)
     else:
         raise NotImplementedError("Algorithm not implemented")
     return alg
@@ -72,7 +72,7 @@ def main():
 
     # training loop
     for i_episode in range(1, max_episodes+1):
-        state = env.reset()
+        obs = env.reset()
         for t in range(max_timesteps):
             if t == max_timesteps:
                 print(f"Reach maximum step {t}")
@@ -80,8 +80,8 @@ def main():
             time_step += 1
             
             # Running policy_old:
-            action = alg.take_action(state, memory)
-            state, reward, done, _ = env.step(action)
+            action = alg.take_action(obs, memory)
+            obs, reward, done, _ = env.step(action)
             
             # Saving reward and is_terminal:
             memory.rewards.append(reward)
