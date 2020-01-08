@@ -5,14 +5,15 @@ import algorithm
 from tool.memory import Memory
 from argparse import ArgumentParser
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def pick_alg(name, env, args):
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
     if name == "a2c":
-        alg = algorithm.A2C(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma)
+        alg = algorithm.A2C(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, device)
     elif name == "ppo":
-        alg = algorithm.PPO(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, args.k_epochs, args.eps_clip)
+        alg = algorithm.PPO(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, args.k_epochs, args.eps_clip, device)
     else:
         raise NotImplementedError("Algorithm not implemented")
     return alg

@@ -11,9 +11,9 @@ def pick_alg(name, env, args):
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
     if name == "a2c":
-        alg = algorithm.A2C(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, args.action_std)
+        alg = algorithm.A2C(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, device, args.action_std)
     elif name == "ppo":
-        alg = algorithm.PPO(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, args.k_epochs, args.eps_clip, args.action_std)
+        alg = algorithm.PPO(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, args.k_epochs, args.eps_clip, device, args.action_std)
     else:
         raise NotImplementedError("Algorithm not implemented")
     return alg

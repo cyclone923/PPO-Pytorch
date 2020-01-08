@@ -5,14 +5,15 @@ import algorithm
 from tool.memory import Memory
 from argparse import ArgumentParser
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def pick_alg(name, env, args):
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
     if name == "a2c":
-        alg = algorithm.A2C(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, args.action_std)
+        alg = algorithm.A2C(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, device, args.action_std)
     elif name == "ppo":
-        alg = algorithm.PPO(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, args.k_epochs, args.eps_clip, args.action_std)
+        alg = algorithm.PPO(state_dim, action_dim, args.n_latent_var, args.lr, args.betas, args.gamma, args.k_epochs, args.eps_clip, device, args.action_std)
     else:
         raise NotImplementedError("Algorithm not implemented")
     return alg
@@ -46,7 +47,7 @@ def parse_args():
 def main():
     ############## Hyperparameters ##############
     env_name = "BipedalWalker-v2"
-    alg_name = "a2c"
+    alg_name = "ppo"
     render = False
     solved_reward = 260         # stop training if avg_reward > solved_reward
     log_interval = 20           # print avg reward in the interval
