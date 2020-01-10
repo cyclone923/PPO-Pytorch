@@ -1,20 +1,27 @@
 import torch
 import torch.nn as nn
 from .network.fc_ac import FC_ActorCritic
+from .network.rc_ac import RC_ActorCritic
 
+net_work_selection = {"fc": FC_ActorCritic, "rc": RC_ActorCritic}
 
 class PPO:
-    def __init__(self, state_dim, action_dim, n_latent_var, lr, betas, gamma, K_epochs, eps_clip, device, action_std=None):
-        self.lr = lr
-        self.betas = betas
-        self.gamma = gamma
-        self.eps_clip = eps_clip
-        self.K_epochs = K_epochs
+    def __init__(self, args, env, device):
+
+        obs_dim = env.observation_space.shape[0]
+        action_dim = env.action_space.shape[0]
+
+        self.lr = args.lr
+        self.betas = args.betas
+        self.gamma = args.gamma
+        self.eps_clip = args.eps_clip
+        self.k_epochs = args.k_epochs
         self.device = device
 
-        self.policy = FC_ActorCritic(state_dim, action_dim, n_latent_var, device, action_std).to(device)
-        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr, betas=betas)
-        self.policy_old = FC_ActorCritic(state_dim, action_dim, n_latent_var, device, action_std).to(device)
+        self.net_work = net_work_selection[args.network]
+        self.policy = self.net_work(obs_dim, action_dim, device, args.action_std).to(device)
+        self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=self.lr, betas=self.betas)
+        self.policy_old = self.net_work(obs_dim, action_dim, device, args.action_std).to(device)
         self.policy_old.load_state_dict(self.policy.state_dict())
 
         self.MseLoss = nn.MSELoss()
@@ -24,6 +31,9 @@ class PPO:
 
     def act_policy(self):
         return self.policy_old
+
+    def memory_reset(self):
+        self.policy.reset()
 
     def take_action(self, state, memory):
         return self.act_policy().act(state, memory)
@@ -44,14 +54,12 @@ class PPO:
         # rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)
 
         # convert list to tensor
-        old_states = torch.stack(memory.states).to(self.device).detach()
-        old_actions = torch.stack(memory.actions).to(self.device).detach()
         old_logprobs = torch.stack(memory.logprobs).to(self.device).detach()
 
         # Optimize policy for K epochs:
-        for _ in range(self.K_epochs):
+        for _ in range(self.k_epochs):
             # Evaluating old actions and values :
-            logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions)
+            logprobs, state_values, dist_entropy = self.policy.evaluate(memory)
 
             # Finding the ratio (pi_theta / pi_theta__old):
             ratios = torch.exp(logprobs - old_logprobs.detach())
