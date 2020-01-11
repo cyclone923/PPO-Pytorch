@@ -2,11 +2,12 @@ import torch
 import torch.nn as nn
 from .network.fc_ac import FC_ActorCritic
 from .network.rc_ac import RC_ActorCritic
+import os
 
 net_work_selection = {"fc": FC_ActorCritic, "rc": RC_ActorCritic}
 
 class PPO:
-    def __init__(self, args, env, device):
+    def __init__(self, args, env, device, k_epochs):
 
         obs_dim = env.observation_space.shape[0]
         action_dim = env.action_space.shape[0]
@@ -15,7 +16,7 @@ class PPO:
         self.betas = args.betas
         self.gamma = args.gamma
         self.eps_clip = args.eps_clip
-        self.k_epochs = args.k_epochs
+        self.k_epochs = k_epochs
         self.device = device
 
         self.net_work = net_work_selection[args.network]
@@ -26,17 +27,18 @@ class PPO:
 
         self.MseLoss = nn.MSELoss()
 
-    def policy_dict(self):
-        return self.policy.state_dict()
-
-    def act_policy(self):
-        return self.policy_old
-
     def memory_reset(self):
         self.policy.reset()
 
     def take_action(self, state, memory):
-        return self.act_policy().act(state, memory)
+        return self.policy_old.act(state, memory)
+
+    def save_dict(self, directory, alg_name, env_name, net_name):
+        torch.save(self.policy.state_dict(), os.path.join(directory, '{}_{}_{}.pth'.format(alg_name, env_name, net_name)))
+
+    def load_dict(self, directory, alg_name, env_name, net_name):
+        self.policy_old.load_state_dict(torch.load(os.path.join(directory, '{}_{}_{}.pth'.format(alg_name, env_name, net_name))))
+        self.policy.load_state_dict(torch.load(os.path.join(directory, '{}_{}_{}.pth'.format(alg_name, env_name, net_name))))
 
     def update(self, memory):
         # Monte Carlo estimate of state rewards:
